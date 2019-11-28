@@ -1,0 +1,123 @@
+---
+title: "Test Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(crosstalk)
+library(flexdashboard)
+library(plotly)
+library(DT)
+library(leaflet)
+
+# prepare data
+data1 <- read.csv("Header.csv", header=T, sep=",")
+data2 <- read.csv("Product.csv", header=T, sep=",")
+
+# merge data
+df <- merge(data1, data2, by.x="API.Number", by.y="API")
+
+# for testing, keep only 5000 first lines
+df <-  head(df, 5000)
+
+# convert data type of "Month"
+capFirst <- function(s) {
+  paste(toupper(substring(s, 1, 1)), substring(s, 2), sep = "")}
+df$Month <- match(capFirst(tolower(df$Month)),month.abb)
+
+```
+
+
+Demo 1
+=============================================================
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+
+### Map
+
+```{r}
+# Create a color palette with handmade bins.
+mpalette <- colorBin(palette="RdYlBu", domain=df$Liquid, na.color="transparent")
+
+# Prepare the text for the tooltip:
+mtext <- paste(
+  "Longitude: ", df$Surface.Longitude, "<br/>",
+  "Latitude: ", df$Surface.Latitude, "<br/>",
+  "Liquid: ", df$Liquid, sep="") %>%
+  lapply(htmltools::HTML)
+
+# final map
+sd_df <- SharedData$new(df)
+
+sd_df %>% leaflet() %>% addTiles() %>% 
+  addCircleMarkers(~Surface.Longitude, ~Surface.Latitude, fillColor = ~mpalette(Liquid), stroke=FALSE, label = mtext, labelOptions = labelOptions(style = list("font-weight"="normal", padding="3px 8px"), textsize="13px", direction="auto")) %>% 
+  addLegend(pal=mpalette, values=~Liquid, opacity=0.9, title="Liquid", position="bottomright" )
+
+```
+
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Table
+
+```{r}
+
+datatable(sd_df, extensions="Scroller", style="bootstrap", class="compact", width="100%", options=list(deferRender=TRUE, scrollY=300, scroller=TRUE))
+
+```
+
+Sidebar {.sidebar}
+-----------------------------------------------------------------------
+
+```{r}
+
+filter_slider("Year", "Year", sd_df, column=~Year, step=10)
+filter_checkbox("Month", "Month", sd_df, ~Month, columns=3, inline = TRUE)
+
+```
+
+
+Demo 2
+=============================================================
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+### Map
+
+```{r}
+
+sd_df2 <- SharedData$new(df)
+
+sd_df2 %>%
+  plot_ly(
+    lat = ~Surface.Latitude,
+    lon = ~Surface.Longitude,
+    marker = list(color = "blue"),
+    type = 'scattermapbox',
+    text = ~API.Number) %>%
+  layout(
+    mapbox = list(
+      style = 'open-street-map',
+      zoom =2.5,
+      center = list(lon = -88, lat = 34))) %>%
+  highlight("plotly_selected")
+
+
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+### Table
+
+```{r}
+
+datatable(sd_df2, extensions="Scroller", style="bootstrap", class="compact", width="100%", options=list(deferRender=TRUE, scrollY=300, scroller=TRUE))
+
+
+```
